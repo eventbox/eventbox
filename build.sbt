@@ -1,15 +1,13 @@
 
 name := "eventbox"
 
-version := "1.0"
+version := "1.1"
 
 scalaVersion := "2.12.3"
 
-organization := ""
+organization := "io.github.eventbox"
 
-sources in doc in Compile := List()
-
-isSnapshot := true
+publishTo := sonatypePublishTo.value
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % "2.5.17"

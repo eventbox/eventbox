@@ -2,7 +2,7 @@ package eventbox
 
 import akka.actor.{Actor, ActorRef}
 import akka.util.Timeout
-import eventbox.events.{ActorJoin, Event, EventDone, EventSuccess, EventError}
+import eventbox.events.{ActorJoin, Event, EventEnd, EventSuccess, EventError}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -26,7 +26,7 @@ abstract class EventActor(eventManager: ActorRef)(implicit ec:ExecutionContext) 
 
         try {
           on(msg).map { data =>
-            eventManager ! EventDone(msg, EventSuccess(data))
+            eventManager ! EventEnd(msg, EventSuccess(data))
           }.recover {
             case t:Throwable => recover(msg, t)
           }
@@ -35,13 +35,13 @@ abstract class EventActor(eventManager: ActorRef)(implicit ec:ExecutionContext) 
         }
 
       } else {
-        eventManager ! EventDone(msg, EventSuccess(Unit))
+        eventManager ! EventEnd(msg, EventSuccess(Unit))
       }
 
     }
   }
 
   private def recover(msg:Event, t:Throwable) = {
-    eventManager ! EventDone(msg, EventError(t))
+    eventManager ! EventEnd(msg, EventError(t))
   }
 }

@@ -15,7 +15,7 @@ abstract class EventManager extends Actor with ActorLogging {
     case ActorJoin =>
       actors :+= sender
 
-    case EventDone(msg, eventResponse) => {
+    case EventEnd(msg, eventResponse) => {
 
       log.info("EventDone:" + msg)
 
@@ -35,15 +35,9 @@ abstract class EventManager extends Actor with ActorLogging {
         // check ques tous les events sont ok
         if (events.forall(_.actorResponses.size == actors.size)){
 
-          val results: List[Any] = ev.actorResponses.collect { case (_, e:EventSuccess) => e.result }.toList
-
-          val errors: List[EventError] = for {
-            e <- events
-            error <- e.actorResponses.collect { case (_, e:EventError) => e}
-          } yield error
-
           log.info("EventFinish:" + ev)
-          ev.sender.foreach(_ ! EventFinish(results, errors))
+
+          ev.sender.foreach(_ ! buildEventDone(ev))
 
           // remove this event from eventQueue
           eventQ = eventQ.filterNot(_ == ev)
@@ -96,5 +90,15 @@ abstract class EventManager extends Actor with ActorLogging {
     actors foreach { a =>
       a ! msg
     }
+  }
+
+  private def buildEventDone(ev:Event) : EventDone = {
+
+    EventDone(
+      ev=ev,
+      results = ev.actorResponses.collect { case (_, e:EventSuccess) => e.result }.toList,
+      errors = ev.actorResponses.collect { case (_, e:EventError) => e}.toList,
+      childEvents = ev.childEvents.map(buildEventDone)
+    )
   }
 }
