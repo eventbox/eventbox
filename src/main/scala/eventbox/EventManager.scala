@@ -8,7 +8,8 @@ abstract class EventManager extends Actor with ActorLogging {
   var actors = List.empty[ActorRef]
   var eventQ = List.empty[Event]
 
-  def onEvent(msg:Event)
+  def onEventStart(msg:Event)
+  def onEventStop(msg:Event)
 
   override def receive: Receive = {
 
@@ -18,6 +19,11 @@ abstract class EventManager extends Actor with ActorLogging {
     case EventEnd(msg, eventResponse) => {
 
       log.info("EventDone:" + msg)
+      try {
+        onEventStop(msg)
+      } catch {
+        case t:Throwable =>
+      }
 
       val id = msg.eventCtx.originalId.getOrElse(msg.eventCtx.id)
       val maybeOriginalEvent = eventQ.find(_.eventCtx.id == id)
@@ -61,7 +67,7 @@ abstract class EventManager extends Actor with ActorLogging {
       } else {
 
         try {
-          onEvent(msg)
+          onEventStart(msg)
         } catch {
           case t:Throwable =>
         }
@@ -84,6 +90,12 @@ abstract class EventManager extends Actor with ActorLogging {
       log.warning("msg unhandled: " + msg)
     }
   }
+
+  /*
+  def ! (implicit parent:Event=NoEvent()) = {
+
+  }
+  */
 
   def broadcast(msg:Event, sender:ActorRef): Unit ={
     msg.sender = Some(sender)

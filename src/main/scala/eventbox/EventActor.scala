@@ -9,7 +9,7 @@ import scala.concurrent.duration._
 
 abstract class EventActor(eventManager: ActorRef)(implicit ec:ExecutionContext) extends Actor {
 
-  implicit val timeout: Timeout = Timeout(3 seconds)
+  implicit val timeout: Timeout = Timeout(30 seconds)
 
   def on: PartialFunction[Any, Future[Any]]
 

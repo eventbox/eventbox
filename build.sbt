@@ -1,7 +1,7 @@
 
 name := "eventbox"
 
-version := "1.1"
+version := "1.4"
 
 scalaVersion := "2.12.3"
 
