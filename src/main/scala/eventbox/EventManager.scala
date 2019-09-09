@@ -1,15 +1,33 @@
 package eventbox
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import eventbox.events._
+import eventbox.events.{EventResponse, _}
+
+import scala.concurrent.Future
+import scala.util.Try
 
 abstract class EventManager extends Actor with ActorLogging {
 
   var actors = List.empty[ActorRef]
   var eventQ = List.empty[Event]
 
-  def onEventStart(msg:Event)
-  def onEventStop(msg:Event)
+  /**
+    * Event is start
+    * @param msg
+    */
+  def onEventStart(msg:Event):Future[Any]
+
+  /**
+    * Event is ended
+    * @param msg
+    */
+  def onEventEnd(msg:Event, ex:Option[Throwable]):Future[Any]
+
+  /**
+    * Original Event & all child events are ended
+    * @param msg:Event (Original event)
+    */
+  def onEventDone(msg:Event):Future[Any]
 
   override def receive: Receive = {
 
@@ -18,12 +36,14 @@ abstract class EventManager extends Actor with ActorLogging {
 
     case EventEnd(msg, eventResponse) => {
 
-      log.info("EventDone:" + msg)
-      try {
-        onEventStop(msg)
-      } catch {
-        case t:Throwable =>
+      log.info("EventEnd:" + msg)
+
+      val throwable = eventResponse match {
+        case EventError(t) => Some(t)
+        case _ => None
       }
+
+      Try { onEventEnd(msg, throwable) }
 
       val id = msg.eventCtx.originalId.getOrElse(msg.eventCtx.id)
       val maybeOriginalEvent = eventQ.find(_.eventCtx.id == id)
@@ -41,7 +61,9 @@ abstract class EventManager extends Actor with ActorLogging {
         // check ques tous les events sont ok
         if (events.forall(_.actorResponses.size == actors.size)){
 
-          log.info("EventFinish:" + ev)
+          Try { onEventDone(ev) }
+
+          log.info("EventDone:" + ev)
 
           ev.sender.foreach(_ ! buildEventDone(ev))
 
@@ -66,11 +88,7 @@ abstract class EventManager extends Actor with ActorLogging {
         )
       } else {
 
-        try {
-          onEventStart(msg)
-        } catch {
-          case t:Throwable =>
-        }
+        Try { onEventStart(msg) }
 
         msg.eventCtx.originalId match {
           case None =>

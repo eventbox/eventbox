@@ -1,12 +1,15 @@
 package eventbox.events
 
+import java.time.LocalDateTime
+
 import scala.reflect.ClassTag
 
 case class EventDone (
   ev:Event,
   results:List[Any]=Nil,
   errors:List[EventError]=Nil,
-  childEvents:List[EventDone]=Nil
+  childEvents:List[EventDone]=Nil,
+  creationDate:LocalDateTime=LocalDateTime.now
 ) {
 
   lazy val isSuccess = errors.isEmpty
