@@ -21,5 +21,10 @@ case class EventDone (
     * @tparam T
     * @return
     */
-  def find[T](implicit tag: ClassTag[T]) = results.collectFirst { case r:T => r }
+  def find[T](implicit tag: ClassTag[T]): Option[T] = results.collectFirst { case r:T => r }
+  def filter[T](implicit tag: ClassTag[T]): List[T] = results.collect { case r:T => r }
+
+  def findChildEvent[T<:Event](implicit tag: ClassTag[T]): Option[T] = childEvents.map(_.ev).collectFirst { case r:T => r }
+  def filterChildEvent[T<:Event](implicit tag: ClassTag[T]): List[T] = childEvents.map(_.ev).collect { case r:T => r }
+  def existsChildEvent[T<:Event](implicit tag: ClassTag[T]): Boolean = findChildEvent[T].nonEmpty
 }
