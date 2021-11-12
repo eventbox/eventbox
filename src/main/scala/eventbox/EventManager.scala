@@ -1,15 +1,22 @@
 package eventbox
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.pattern.ask
+import akka.util.Timeout
 import eventbox.events.{EventResponse, _}
 
-import scala.concurrent.Future
+import java.time.LocalDateTime
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.DurationInt
 import scala.util.Try
 
 abstract class EventManager extends Actor with ActorLogging {
 
   var actors = List.empty[ActorRef]
   var eventQ = List.empty[Event]
+
+  implicit val timeout = Timeout(60 seconds)
+  implicit val ec: ExecutionContext
 
   /**
     * Event is start
@@ -21,7 +28,7 @@ abstract class EventManager extends Actor with ActorLogging {
     * Event is ended
     * @param msg
     */
-  def onEventEnd(msg:Event, ex:Option[Throwable]):Future[Any]
+  def onEventEnd(msg:Event, ex:Option[Throwable], endDate:LocalDateTime):Future[Any]
 
   /**
     * Original Event & all child events are ended
@@ -34,7 +41,7 @@ abstract class EventManager extends Actor with ActorLogging {
     case ActorJoin =>
       actors :+= sender
 
-    case EventEnd(msg, eventResponse) => {
+    case EventEnd(msg, eventResponse, endDate) => {
 
       log.info("EventEnd:" + msg)
 
@@ -43,7 +50,7 @@ abstract class EventManager extends Actor with ActorLogging {
         case _ => None
       }
 
-      Try { onEventEnd(msg, throwable) }
+      Try { onEventEnd(msg, throwable, endDate) }
 
       val id = msg.eventCtx.originalId.getOrElse(msg.eventCtx.id)
       val maybeOriginalEvent = eventQ.find(_.eventCtx.id == id)
@@ -101,7 +108,11 @@ abstract class EventManager extends Actor with ActorLogging {
 
         }
 
-        broadcast(msg, sender)
+        for {
+          _ <- beforeHook(msg)
+          _ <- broadcast(msg, sender)
+        } yield {}
+
       }
     }
     case msg => {
@@ -115,11 +126,18 @@ abstract class EventManager extends Actor with ActorLogging {
   }
   */
 
-  def broadcast(msg:Event, sender:ActorRef): Unit ={
+  def beforeHook(msg:Event): Future[Unit] = {
+    if (!msg.isInstanceOf[EventHook]) {
+      (self ? BeforeEvent(msg, EventCtx())).map { _ => () }
+    } else Future.unit
+  }
+
+  def broadcast(msg:Event, sender:ActorRef): Future[Unit] = {
     msg.sender = Some(sender)
     actors foreach { a =>
       a ! msg
     }
+    Future.unit
   }
 
   private def buildEventDone(ev:Event) : EventDone = {
