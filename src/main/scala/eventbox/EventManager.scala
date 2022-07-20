@@ -46,11 +46,16 @@ abstract class EventManager extends Actor with ActorLogging {
       log.info("EventEnd:" + msg)
 
       val throwable = eventResponse match {
-        case EventError(t) => Some(t)
+        case EventError(t, _) => Some(t)
         case _ => None
       }
 
       Try { onEventEnd(msg, throwable, endDate) }
+
+      msg.actorResponses = msg.actorResponses + (sender -> eventResponse)
+      if (msg.actorResponses.size == actors.size){
+        onEventDone(msg)
+      }
 
       val id = msg.eventCtx.originalId.getOrElse(msg.eventCtx.id)
       val maybeOriginalEvent = eventQ.find(_.eventCtx.id == id)
@@ -68,7 +73,7 @@ abstract class EventManager extends Actor with ActorLogging {
         // check ques tous les events sont ok
         if (events.forall(_.actorResponses.size == actors.size)){
 
-          Try { onEventDone(ev) }
+          //Try { onEventDone(ev) }
 
           log.info("EventDone:" + ev)
 
@@ -108,9 +113,10 @@ abstract class EventManager extends Actor with ActorLogging {
 
         }
 
+        val s = sender()
         for {
           _ <- beforeHook(msg)
-          _ <- broadcast(msg, sender)
+          _ <- (broadcast(msg, s))
         } yield {}
 
       }
@@ -128,7 +134,14 @@ abstract class EventManager extends Actor with ActorLogging {
 
   def beforeHook(msg:Event): Future[Unit] = {
     if (!msg.isInstanceOf[EventHook]) {
-      (self ? BeforeEvent(msg, EventCtx())).map { _ => () }
+      (self ? BeforeEvent(msg, EventCtx())).map { _ =>
+        ()
+      } recover {
+        case t:Throwable => {
+          t.printStackTrace()
+          Future.unit
+        }
+      }
     } else Future.unit
   }
 
@@ -140,7 +153,7 @@ abstract class EventManager extends Actor with ActorLogging {
     Future.unit
   }
 
-  private def buildEventDone(ev:Event) : EventDone = {
+  private def buildEventDone(ev:Event) : EventDone = /*Timing.time("buildEventDone")*/{
 
     EventDone(
       ev=ev,
